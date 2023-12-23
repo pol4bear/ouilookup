@@ -128,7 +128,12 @@ def get_oui_info(argument):
     res_data['info'] = 'Non MAC address data not accepted.'
     res_code = 400
 
-  return json.dumps(res_data, indent=2 if request.args.get('minify') == None else 0), res_code, http_header
+  indent = request.args.get('indent')
+  if indent == None or not indent.isdigit():
+    indent = 2
+  res_data = json.dumps(res_data, indent=int(indent)) if request.args.get('minify') == None else json.dumps(res_data, separators=(',', ':'))
+
+  return res_data, res_code, http_header
 
 @click.command()
 @click.option('--verbose', '-v', is_flag=True, default=False, help='Get detailed log including debug messages')
