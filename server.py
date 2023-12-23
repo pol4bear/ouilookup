@@ -164,6 +164,10 @@ def get_oui_info(argument):
 def get_favicon():
   return send_from_directory('static', 'favicon.ico')
 
+@app.route('/robots.txt')
+def get_robots_txt():
+  return send_from_directory('static', 'robots.txt')
+
 
 @click.command()
 @click.option('--verbose', '-v', is_flag=True, default=False, help='Get detailed log including debug messages')
