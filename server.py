@@ -8,7 +8,7 @@ import pandas as pd
 import requests
 from calendar import timegm
 from datetime import datetime
-from flask import Flask, request
+from flask import Flask, request, send_from_directory
 from io import StringIO
 from pathlib import Path
 from threading import Timer
@@ -32,6 +32,7 @@ mal_db = None
 mam_db = None
 mas_db = None
 app = Flask(__name__)
+
 
 def init():
   global is_initializing, init_timer, mal_db, mam_db, mas_db
@@ -81,6 +82,66 @@ def init():
   init_timer.start()
   is_initializing = False
 
+
+def search_mac(query):
+  res_data = { 'count': 0 }
+  if 6 <= len(query) <= 17:
+    mac = query.replace(':', '').upper()
+    mac = mac.replace('-', '')
+    mac_len = len(mac)
+    if mac_len > 12:
+      raise
+
+    for c in mac:
+      if not (c.isdigit() or ('A' <= c <= 'F')):
+        raise
+
+    search_result = mal_db[mal_db['Assignment'].str.startswith(mac[:6])]
+
+    result_count = len(search_result.index)
+    if result_count < 1 or search_result['Organization Name'].iloc[0] == 'IEEE Registration Authority':
+      search_result = []
+      search_result.append(mam_db[mam_db['Assignment'].str.startswith(mac[:mac_len if mac_len < 7 else 7])])
+      search_result.append(mas_db[mas_db['Assignment'].str.startswith(mac[:mac_len if mac_len < 9 else 9])])
+      search_result = pd.concat(search_result, axis=0, ignore_index=True)
+      result_count = len(search_result.index)
+
+    if result_count < 1:
+      if mac[1] in ('2', '6', 'A', 'E'):
+        res_data['info'] = 'The address is randomly generated'
+      else:
+        res_data['info'] = "There's no OUI information starting with given MAC address"
+    else:
+      res_data['count'] = result_count
+      res_data['data'] = search_result.to_dict('records')
+  else:
+    raise
+  return res_data
+
+def search_organization_name(query):
+  res_data = { 'count': 0 }
+  search_result = []
+  search_result.append(mal_db[mal_db['Organization Name'].str.contains(query, False)])
+  search_result.append(mam_db[mam_db['Organization Name'].str.contains(query, False)])
+  search_result.append(mas_db[mas_db['Organization Name'].str.contains(query, False)])
+  search_result = pd.concat(search_result, axis=0, ignore_index=True)
+  result_count = len(search_result.index)
+
+  if result_count < 1:
+    res_data['info'] = "There's no OUI information with given organization name"
+  else:
+    res_data['count'] = result_count
+    res_data['data'] = search_result.to_dict('records')
+
+  return res_data
+
+def search_oui_info(query):
+  try:
+    return search_mac(query)
+  except:
+    return search_organization_name(query)
+
+
 @app.route('/<argument>')
 def get_oui_info(argument):
   global is_initializing, oui_informations, oui_len
@@ -88,52 +149,21 @@ def get_oui_info(argument):
   if is_initializing:
     return '', 503
 
-  res_data = { 'count': 0 }
+  res_data = search_oui_info(argument)
   res_code = 200
-  http_header = {'Content-Type': 'application/json; charset=utf-8'}
-
-  try:
-    if 6 <= len(argument) <= 17:
-      mac = argument.replace(':', '').upper()
-      mac = mac.replace('-', '')
-      mac_len = len(mac)
-      if mac_len > 12:
-        raise
-
-      for c in mac:
-        if not (c.isdigit() or ('A' <= c <= 'F')):
-          raise
-
-      search_result = mal_db[mal_db['Assignment'].str.startswith(mac[:6])]
-
-      result_count = len(search_result.index)
-      if result_count < 1 or search_result['Organization Name'].iloc[0] == 'IEEE Registration Authority':
-        search_result = []
-        search_result.append(mam_db[mam_db['Assignment'].str.startswith(mac[:mac_len if mac_len < 7 else 7])])
-        search_result.append(mas_db[mas_db['Assignment'].str.startswith(mac[:mac_len if mac_len < 9 else 9])])
-        search_result = pd.concat(search_result, axis=0, ignore_index=True)
-        result_count = len(search_result.index)
-
-      if result_count < 1:
-        if mac[1] in ('2', '6', 'A', 'E'):
-          res_data['info'] = 'The address is randomly generated'
-        else:
-          res_data['info'] = "There's no OUI information starting with given address"
-          res_code = 204
-      else:
-        res_data['count'] = result_count
-        res_data['data'] = search_result.to_dict('records')
-
-  except:
-    res_data['info'] = 'Non MAC address data not accepted.'
-    res_code = 400
+  res_header = {'Content-Type': 'application/json; charset=utf-8'}
 
   indent = request.args.get('indent')
   if indent == None or not indent.isdigit():
     indent = 2
   res_data = json.dumps(res_data, indent=int(indent)) if request.args.get('minify') == None else json.dumps(res_data, separators=(',', ':'))
 
-  return res_data, res_code, http_header
+  return res_data, res_code, res_header
+
+@app.route('/favicon.ico')
+def get_favicon():
+  return send_from_directory('static', 'favicon.ico')
+
 
 @click.command()
 @click.option('--verbose', '-v', is_flag=True, default=False, help='Get detailed log including debug messages')
