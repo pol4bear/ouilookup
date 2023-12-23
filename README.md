@@ -21,12 +21,27 @@ GET /{OUI, MAC Address, or Company Name}
 
 #### Response
 
+- Response with no OUI information
 ```json
 {
-  "oui": "00:1A:2B",
-  "company_name": "Example Corporation",
-  "company_address": "1234 Main Street, City, Country",
-  "company_website": "http://www.example.com"
+  "count": 0,
+  "info": "There's no OUI information starting with given MAC address"
+}
+```
+- Response with OUI information
+```json
+{
+  "count": 843,
+  "data": [
+    {
+      "Unnamed: 0": 240,
+      "Registry": "MA-L",
+      "Assignment": "0000F0",
+      "Organization Name": "Samsung Electronics Co.,Ltd",
+      "Organization Address": "416, MAETAN-3DONG, PALDAL-GU kwon  KR 442-742 "
+    },
+    ...
+  ]
 }
 ```
 
