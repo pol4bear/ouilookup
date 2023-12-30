@@ -18,11 +18,6 @@ db_update_interval = 604800
 mal_db_url = 'https://standards-oui.ieee.org/oui/oui.csv'
 mam_db_url = 'https://standards-oui.ieee.org/oui28/mam.csv'
 mas_db_url = 'https://standards-oui.ieee.org/oui36/oui36.csv'
-oui_len = {
-  'MA-L': 6,
-  'MA-M': 7,
-  'MA-S': 9
-}
 
 working_dir = Path(__file__).parent.resolve()
 data_dir = working_dir / 'data'
@@ -47,11 +42,13 @@ def init():
   mas_file = data_dir / 'mas.csv'
   current_time = datetime.utcnow()
   last_update =  data_dir / 'last_update.txt'
+  elapsed_time = 0
   if last_update.is_file():
     try:
       timestamp = datetime.utcfromtimestamp(int(last_update.read_text()))
       logging.debug(f'Last OUI DB update time is {timestamp}')
-      if mal_file.exists() and mam_file.exists() and mas_file.exists() and (current_time - timestamp).seconds < db_update_interval:
+      elapsed_time = (current_time - timestamp).seconds
+      if mal_file.exists() and mam_file.exists() and mas_file.exists() and elapsed_time < db_update_interval:
         update_db = False
     except:
       os.remove(last_update)
@@ -73,28 +70,41 @@ def init():
     logging.debug(f'Successfully saved MA-S DB to {mas_file.absolute()}')
   else:
     logging.debug('Loading OUI DB')
-    mal_db = pd.read_csv(mal_file, )
+    mal_db = pd.read_csv(mal_file)
     mam_db = pd.read_csv(mam_file)
     mas_db = pd.read_csv(mas_file)
 
   logging.info('Successfully initialized the server')
-  init_timer = Timer(db_update_interval, init)
+  init_timer = Timer(db_update_interval - elapsed_time, init)
   init_timer.start()
   is_initializing = False
 
 
+def is_hex(input: str):
+  if len(input) < 1:
+    return False
+  for c in input:
+    if not (c.isdigit() or ('A' <= c <= 'F') or ('a' <= c <= 'f')):
+      return False
+  return True
+
+def get_mac(input: str):
+  if len(input) < 1:
+    return None
+  mac = input.replace(':', '').replace('-', '').upper()
+  if len(mac) > 12:
+    return None
+  if not is_hex(mac):
+    return None
+  return mac
+
 def search_mac(query):
   res_data = { 'count': 0 }
   if 6 <= len(query) <= 17:
-    mac = query.replace(':', '').upper()
-    mac = mac.replace('-', '')
-    mac_len = len(mac)
-    if mac_len > 12:
+    mac = get_mac(query)
+    if mac == None:
       raise
-
-    for c in mac:
-      if not (c.isdigit() or ('A' <= c <= 'F')):
-        raise
+    mac_len = len(mac)
 
     search_result = mal_db[mal_db['Assignment'].str.startswith(mac[:6])]
 
@@ -142,9 +152,9 @@ def search_oui_info(query):
     return search_organization_name(query)
 
 
-@app.route('/<argument>')
+@app.route('/api/<argument>')
 def get_oui_info(argument):
-  global is_initializing, oui_informations, oui_len
+  global is_initializing
 
   if is_initializing:
     return '', 503
@@ -164,10 +174,6 @@ def get_oui_info(argument):
 def get_favicon():
   return send_from_directory('static', 'favicon.ico')
 
-@app.route('/robots.txt')
-def get_robots_txt():
-  return send_from_directory('static', 'robots.txt')
-
 
 @click.command()
 @click.option('--verbose', '-v', is_flag=True, default=False, help='Get detailed log including debug messages')
@@ -183,3 +189,4 @@ def main(verbose, host, port):
 
 if __name__ == "__main__":
   main()
+500
