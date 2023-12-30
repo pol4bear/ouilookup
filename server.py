@@ -152,7 +152,7 @@ def search_oui_info(query):
     return search_organization_name(query)
 
 
-@app.route('/api/<argument>')
+@app.route('/<argument>')
 def get_oui_info(argument):
   global is_initializing
 
