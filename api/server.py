@@ -18,6 +18,7 @@ db_update_interval = 604800
 mal_db_url = 'https://standards-oui.ieee.org/oui/oui.csv'
 mam_db_url = 'https://standards-oui.ieee.org/oui28/mam.csv'
 mas_db_url = 'https://standards-oui.ieee.org/oui36/oui36.csv'
+default_limit = 10
 
 working_dir = Path(__file__).parent.resolve()
 data_dir = working_dir / 'data'
@@ -41,7 +42,7 @@ def init():
   mam_file = data_dir / 'mam.csv'
   mas_file = data_dir / 'mas.csv'
   current_time = datetime.utcnow()
-  last_update =  data_dir / 'last_update.txt'
+  last_update = data_dir / 'last_update.txt'
   elapsed_time = 0
   if last_update.is_file():
     try:
@@ -74,7 +75,7 @@ def init():
     mam_db = pd.read_csv(mam_file)
     mas_db = pd.read_csv(mas_file)
 
-  logging.info('Successfully initialized the server')
+  logging.info('Server initialized successfully')
   init_timer = Timer(db_update_interval - elapsed_time, init)
   init_timer.start()
   is_initializing = False
@@ -88,6 +89,7 @@ def is_hex(input: str):
       return False
   return True
 
+
 def get_mac(input: str):
   if len(input) < 1:
     return None
@@ -98,11 +100,12 @@ def get_mac(input: str):
     return None
   return mac
 
-def search_mac(query):
-  res_data = { 'count': 0 }
+
+def search_mac(query, page=None, limit=None):
+  res_data = {'count': 0}
   if 6 <= len(query) <= 17:
     mac = get_mac(query)
-    if mac == None:
+    if mac is None:
       raise
     mac_len = len(mac)
 
@@ -118,18 +121,27 @@ def search_mac(query):
 
     if result_count < 1:
       if mac[1] in ('2', '6', 'A', 'E'):
-        res_data['info'] = 'The address is randomly generated'
+        res_data['info'] = 'This MAC address is randomly generated.'
       else:
-        res_data['info'] = "There's no OUI information starting with given MAC address"
+        res_data['info'] = "No OUI information found for the given MAC address."
     else:
-      res_data['count'] = result_count
-      res_data['data'] = search_result.to_dict('records')
+      if page is not None and limit is not None:
+        data = search_result.iloc[(page - 1) * limit: page * limit].to_dict('records')
+      else:
+        data = search_result.to_dict('records')
+      result_count = len(data)
+      if result_count > 0:
+        res_data['count'] = result_count
+        res_data['data'] = data
+      else:
+        res_data['info'] = "No more OUI information found for the given MAC address."
   else:
     raise
   return res_data
 
-def search_organization_name(query):
-  res_data = { 'count': 0 }
+
+def search_organization_name(query, page=None, limit=None):
+  res_data = {'count': 0}
   search_result = []
   search_result.append(mal_db[mal_db['Organization Name'].str.contains(query, False)])
   search_result.append(mam_db[mam_db['Organization Name'].str.contains(query, False)])
@@ -138,18 +150,27 @@ def search_organization_name(query):
   result_count = len(search_result.index)
 
   if result_count < 1:
-    res_data['info'] = "There's no OUI information with given organization name"
+    res_data['info'] = "No OUI information found for the given organization name."
   else:
-    res_data['count'] = result_count
-    res_data['data'] = search_result.to_dict('records')
+    if page is not None and limit is not None:
+      data = search_result.iloc[(page - 1) * limit: page * limit].to_dict('records')
+    else:
+      data = search_result.to_dict('records')
+    result_count = len(data)
+    if result_count > 0:
+      res_data['count'] = result_count
+      res_data['data'] = data
+    else:
+      res_data['info'] = "No more OUI information found for the given organization name."
 
   return res_data
 
-def search_oui_info(query):
+
+def search_oui_info(query, page=None, limit=None):
   try:
-    return search_mac(query)
+    return search_mac(query, page, limit)
   except:
-    return search_organization_name(query)
+    return search_organization_name(query, page, limit)
 
 
 @app.route('/<argument>')
@@ -159,26 +180,35 @@ def get_oui_info(argument):
   if is_initializing:
     return '', 503
 
-  res_data = search_oui_info(argument)
+  page = request.args.get('page', default=None, type=int)
+  limit = request.args.get('limit', default=None, type=int)
+
+  if page is None and limit is not None:
+    page = 1
+  elif page is not None:
+    if limit is None:
+      limit = default_limit
+    if page < 1:
+      page = 1
+
+  res_data = search_oui_info(argument, page, limit)
   res_code = 200
   res_header = {'Content-Type': 'application/json; charset=utf-8'}
 
-  indent = request.args.get('indent')
-  if indent == None or not indent.isdigit():
-    indent = 2
-  res_data = json.dumps(res_data, indent=int(indent)) if request.args.get('minify') == None else json.dumps(res_data, separators=(',', ':'))
+  res_data = json.dumps(res_data)
 
   return res_data, res_code, res_header
 
-@app.route('/favicon.ico')
-def get_favicon():
-  return send_from_directory('static', 'favicon.ico')
+
+@app.route('/')
+def root():
+  return '', 400, {}
 
 
 @click.command()
 @click.option('--verbose', '-v', is_flag=True, default=False, help='Get detailed log including debug messages')
 @click.option('--host', '-l', default='0.0.0.0', help='Host of the web server')
-@click.option('--port', '-p', default=80, help='Port of the HTTP server')
+@click.option('--port', '-p', default=8080, help='Port of the HTTP server')
 def main(verbose, host, port):
   global init_timer
   if verbose:
@@ -187,6 +217,6 @@ def main(verbose, host, port):
   app.run(host=host, port=port)
   init_timer.cancel()
 
+
 if __name__ == "__main__":
   main()
-500
