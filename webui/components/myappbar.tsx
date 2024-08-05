@@ -1,12 +1,9 @@
 "use client"
 
-import { AppBar, Box, IconButton, Toolbar, Typography, useMediaQuery } from "@mui/material";
+import { AppBar, Box, Toolbar, Typography } from "@mui/material";
 import logo from '../public/logo.png'
 import Image from 'next/image';
 import Link from "next/link";
-import { useTheme } from "next-themes";
-import { DarkMode, LightMode } from "@mui/icons-material";
-import { useEffect, useState } from "react";
 
 export default function MyAppBar() {
   return (
@@ -35,29 +32,7 @@ export default function MyAppBar() {
               </Typography>
           </Link>
         </Box>
-        <ThemeChanger />
       </Toolbar>
     </AppBar>
   );
-}
-
-function ThemeChanger() {
-  const {theme, setTheme} = useTheme();
-  const [loaded, setLoaded] = useState(false);
-  const isSystemDarkMode = useMediaQuery("(prefers-color-scheme: dark")
-
-  useEffect(()=> {
-    setLoaded(true);
-    const currentTheme = localStorage.getItem("theme");
-    if (currentTheme == null)
-      setTheme(isSystemDarkMode ? 'dark' : 'light');
-  }, [isSystemDarkMode, setTheme])
-
-  return (
-    <IconButton
-      size="large"
-      onClick={() => {setTheme(theme == 'light' ? 'dark' : 'light')}}>
-      {loaded ? theme == 'light' ? <DarkMode /> : <LightMode /> : <></>}
-    </IconButton>
-  )
 }

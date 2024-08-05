@@ -55,8 +55,8 @@ To use the OUI Lookup Web Service, follow these steps:
 
 ```bash
 # Retrieve OUI Information by OUI
-curl -X GET https://oui.pol4.dev/001A2B
+curl -X GET https://ouiapi.pol4.dev/001A2B
 
 # Retrieve OUI Information by Company Name
-curl -X GET http://oui.pol4.dev/Example%20Corporation
+curl -X GET http://ouiapi.pol4.dev/Example%20Corporation
 ```

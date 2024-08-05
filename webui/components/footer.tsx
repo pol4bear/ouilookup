@@ -1,6 +1,6 @@
-import { Box, Typography } from "@mui/material";
+import { Box, Link, Typography } from "@mui/material";
 
-export default function Footer() {
+export default function Footer({ style }: { style?: React.CSSProperties }) {
   return (
     <Box
       sx={{
@@ -8,6 +8,7 @@ export default function Footer() {
         justifyContent: 'center',
         alignItems: 'center',
         height: 35,
+        ...style
       }}
     >
       <Typography
@@ -15,7 +16,15 @@ export default function Footer() {
         component="div"
         sx={{ textAlign: 'center' }}
       >
-        © 2023-2024. Pol4bear. All rights reserved.
+        © 2024.{' '}
+        <Link
+          href="https://github.com/pol4bear/ouilookup"
+          underline="none"
+          sx={{ color: 'inherit', textDecoration: 'none' }}
+        >
+          Pol4bear
+        </Link>
+        . All rights reserved.
       </Typography>
     </Box>
   );
